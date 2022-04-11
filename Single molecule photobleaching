@@ -1,0 +1,99 @@
+% This code is for analyzing spot photobleaching data. It takes a stack of
+% tiff images and positions of spots as identified by mosaic and calculates
+% the average integrated intensity of the first three frames
+ 
+ 
+% Image is stored in the structure as N.data. 
+% Run Img_stack to generate structure N containing image intensity data
+ 
+% Load spot center data - genearted from the first frame of the image file
+% using the mosaic particle tracking plug in 
+% Notes on Mosaic: 
+% (1) generate a background subtracted image in mosaic
+% (2) run particle detection in particle tracking module. Thresholds
+% should be set based on background subtracted image
+% (3) save the spot info as a .csv file and import to MATLAB
+ 
+spots = input('enter spot center data: ');
+spots = transpose(spots);
+[x y] = size(spots)
+[c d] = size(N)
+ count = 0;
+ A = imshow(N(1,1).data, [185 250]);
+for i = 1:y
+    eval(['e' num2str(i) '= imellipse(gca,[(spots(1,i)-3) (spots(2,i)-3) 6 6]);']);
+    eval(['M' num2str(i) '= createMask(e' num2str(i) ', A);']);
+    eval(['eb' num2str(i) '= imellipse(gca,[(spots(1,i)-6) (spots(2,i)-6) 12 12]);']);
+    eval(['Mb' num2str(i) '= createMask(eb' num2str(i) ', A);']);
+    
+    % Arrays P and Q are area of the mask calculation using bwarea
+    % Arrays R and S are area of the mask = # of pixels in mask
+    
+    eval(['P(1,i) = bwarea(N(1,1).data(M' num2str(i) '));']);
+    eval(['Q(1,i) = bwarea(N(1,1).data(Mb' num2str(i) '));']);
+    eval(['[R(1,i) R(2,i)] = size(N(1,1).data(M' num2str(i) '));']);
+    eval(['[S(1,i) S(2,i)] = size(N(1,1).data(Mb' num2str(i) '));']);
+    
+    % Discard all spots that are at the image edge
+    % threshold '100' is for spot radius = 3 and 6 pixels for the two concentric rings
+    
+    % Array 'I' is the final intensity data. First row is aoi number. 2nd and 3rd
+    % rows are spot center data. Third  to last rows are back-ground subtracted integrated intensity.
+   
+   
+    if S(1,i) >= 100;
+        count = count+1;
+        I(1, count) = i;
+        I(2, count) = spots(1,i);
+        I(3, count) = spots(2,i);
+        for ind = 1:d
+             eval(['av1(1,i) = mean(N(1,ind).data(M' num2str(i) '));']);
+             eval(['av2(1,i) = mean(N(1,ind).data(Mb' num2str(i) '));']);
+             % change 'R and S' to 'P and Q' to use area calculated by
+             % bwarea
+             avsub(1,i) = (av2(1,i)*S(1,i) - av1(1,i)*R(1,i))/(S(1,i) - R(1,i));
+             int(1,i) = (av1(1,i) - avsub(1,i))* R(1,i); 
+             I(ind+3, count) = int(1,i);
+        end
+        
+         % Array 'Iavg' is the integrated intensity data for making initial intensity histograms
+         % 1st row is aoi number. 2nd and 3rd rows are spot center data and 4th row ia average subtracted integrated intensity.
+        Iavg(1, count) = i;
+        Iavg(2, count) = spots(1,i);
+        Iavg(3, count) = spots(2,i);
+        Iini = I(4:6,count);
+        Iavg(4, count) = mean(Iini);
+    end
+end
+ 
+clear x y c d count A e* M* eb* Mb* av1 av2 avsub int spots i ind P Q R S Iini
+%%
+% plot all the intensity versus time traces
+ 
+[x y] = size(I)
+n=2;
+s=1;
+for i = 1:y
+    figure(n); subplot(3,3,s); 
+    label = strcat('aoi-', num2str(I(1,i)));
+    xa = [1:1:(x-3)]';
+    H1 = plot(gca, xa, I(4:x, i));
+    title(label);
+    set(H1,'LineStyle','-');
+    set(H1,'LineWidth',0.5);
+   
+%     set(get(AX(1),'Ylabel'),'String','I-MT', 'fontsize', 6);
+%     set(get(AX(2),'Ylabel'),'String','I-GFP','fontsize', 6);
+%     set(get(AX(1),'Ylabel'),'fontsize', 6);
+    ylim(gca, [-50 50000]);
+    set(gca,'YTick', [-50 0 50 100 150 200 250]);
+    set(gca,'fontsize', 6);
+   
+    s=s+1;
+    if s == 10
+        s = 1;
+        n = n+1;
+    end
+end
+    
+clear AX H1 s n x y xa i label
